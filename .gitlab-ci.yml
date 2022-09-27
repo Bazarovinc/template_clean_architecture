@@ -1,0 +1,112 @@
+image: docker
+
+variables:
+  DOCKER_DRIVE: overlay2
+  CI_DEBUG_SERVICES: trace
+  COMMIT_IMAGE: $REGISTRY/$CI_PROJECT_PATH:$CI_COMMIT_SHORT_SHA
+  BRANCH_IMAGE: $REGISTRY/$CI_PROJECT_PATH:$CI_COMMIT_REF_SLUG
+  RELEASE_IMAGE: $REGISTRY/$CI_PROJECT_PATH:release.$CI_COMMIT_SHORT_SHA
+
+.docker_login: &docker_login
+  before_script:
+    - cat ${SERVICE_ACCOUNT} | docker login -u json_key --password-stdin cr.yandex
+
+stages:
+  - build
+  - test
+  - release
+  - deploy
+
+build:
+  stage: build
+  services:
+    - docker:20.10.12-dind
+  <<: *docker_login
+  script:
+    - docker pull ${BRANCH_IMAGE} || true
+    - docker build -f docker/Dockerfile --cache-from ${BRANCH_IMAGE} -t ${COMMIT_IMAGE} -t ${BRANCH_IMAGE} .
+    - docker push ${COMMIT_IMAGE}
+    - docker push ${BRANCH_IMAGE}
+
+lint-isort:
+  stage: test
+  services:
+    - docker:20.10.12-dind
+  <<: *docker_login
+  script:
+    - docker pull ${COMMIT_IMAGE}
+    - docker run -i ${COMMIT_IMAGE} isort --check-only .
+
+lint-black:
+  stage: test
+  services:
+    - docker:20.10.6-dind
+  <<: *docker_login
+  script:
+    - docker pull ${COMMIT_IMAGE}
+    - docker run -i ${COMMIT_IMAGE} python3 -m black --check --diff .
+
+lint-mypy:
+  stage: test
+  services:
+    - docker:20.10.6-dind
+  <<: *docker_login
+  script:
+    - docker pull ${COMMIT_IMAGE}
+    - docker run -i ${COMMIT_IMAGE} poetry run mypy .
+
+test:
+  stage: test
+  image: tiangolo/docker-with-compose
+  services:
+    - docker:20.10.6-dind
+  <<: *docker_login
+  script:
+    - docker pull ${COMMIT_IMAGE}
+    - touch report.xml
+    - APP_IMAGE=${COMMIT_IMAGE} docker-compose -f docker-compose.yml -f docker-compose.test.yml run app
+      poetry run pytest --cov-report term:skip-covered --cov=src --junitxml=report.xml -n auto tests/
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+release-image:
+  stage: release
+  only:
+    - master
+  <<: *docker_login
+  script:
+    - docker pull ${COMMIT_IMAGE}
+    - docker tag ${COMMIT_IMAGE} ${RELEASE_IMAGE}
+    - docker push ${RELEASE_IMAGE}
+
+release-to-sentry:
+  stage: release
+  only:
+    - master
+  image:
+    name: getsentry/sentry-cli
+    entrypoint: [""]
+  script:
+    - echo "Release to Sentry..."
+    - export SENTRY_URL=${SENTRY_BASE_URL:-https://sentry.idacloud.ru}
+    - export SENTRY_AUTH_TOKEN=${SENTRY_BASE_TOKEN}
+    - export SENTRY_ORG=${SENTRY_BASE_ORGANIZATION:-dreap}
+    - export SENTRY_PROJECT=${SENTRY_PROJECT:-$CI_PROJECT_NAME}
+    - sentry-cli releases new ${CI_COMMIT_SHA}
+    - sentry-cli releases set-commits --auto ${CI_COMMIT_SHA}
+    - echo "Finalized release for ${CI_COMMIT_SHA}"
+  allow_failure: true
+
+
+deploy:
+  stage: deploy
+  only:
+    - master
+  variables:
+    EXAMPLE_TAG: release.${CI_COMMIT_SHORT_SHA}
+  trigger:
+    project: dreap/devops/k8s
+    branch: development
+    strategy: depend

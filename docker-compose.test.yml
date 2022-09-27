@@ -1,0 +1,8 @@
+version: "3.8"
+
+services:
+  app:
+    environment:
+      KAFKA_FAUST_APP_TYPE: "worker"
+    volumes:
+      - ./report.xml:/app/report.xml

@@ -1,0 +1,117 @@
+[tool.poetry]
+name = "backend"
+version = "0.0.0"
+description = ""
+authors = []
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+multi_line_output = 3
+line_length = 100
+include_trailing_comma = true
+
+[tool.mypy]
+# Mypy configuration:
+# https://mypy.readthedocs.io/en/latest/config_file.html
+allow_redefinition =false
+check_untyped_defs = true
+disallow_untyped_decorators = true
+disallow_any_explicit = false
+disallow_any_generics = false
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+ignore_errors = false
+ignore_missing_imports = false
+local_partial_types = true
+strict_optional = true
+strict_equality = true
+no_implicit_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unreachable = true
+warn_no_return = true
+
+exclude = "^(src.data.database.migrations).*$"
+plugins = ["sqlalchemy.ext.mypy.plugin", "pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["src.data.database.migrations.versions.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["factory.*", "sqlalchemy_utils.*", "common.*", "src.common.*", "schema_registry.*"]
+ignore_missing_imports = true
+
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+filterwarnings = [
+  "ignore::DeprecationWarning",
+  "ignore::UserWarning"
+]
+asyncio_mode = "auto"
+
+[tool.poetry.dependencies]
+python = "~3.10.1"
+
+common = {git = "https://common:TQgESe4voe8_-WkKo7ay@gitlab.idacloud.ru/dreap/backend/common.git", rev = "3.2.0"}
+
+# Server
+uvicorn = "~0.17.5"
+
+# DB
+SQLAlchemy = {version = ">=1.4,<2", extras = ["asyncio", "mypy"]}
+SQLAlchemy-Utils = "~0.38.2"
+alembic = "~1.7.4"
+asyncpg = "~0.25.0"
+psycopg2-binary = "^2.9.3"
+greenlet = "~1.1.2"
+
+# Web-Framework
+fastapi = "~0.75.0"
+pydantic = {extras = ["dotenv"], version = "~1.9.0"}
+python-multipart = "~0.0.5"
+
+# Typehinting
+mypy = "~0.940"
+mypy-extensions = "~0.4.3"
+
+# Libs
+dependency-injector = "~4.38.0"
+loguru = "~0.6.0"
+httpx = "~0.22.0"
+sentry-sdk = "~1.5.4"
+python-schema-registry-client = {version = "~2.2.2", extras = ["faust"]}
+faust-streaming = {git = "https://github.com/taybin/faust.git", rev = "python_3.10"}
+jsonschema = "~4.4.0"
+requests = "~2.27.1"
+
+[tool.poetry.dev-dependencies]
+# Formatting
+black = "^22.1.0"
+isort = "~5.10.1"
+
+# Stubs
+sqlalchemy2-stubs = "~0.0.2-alpha.19"
+python-dotenv = "~0.19.2"
+
+# Tests
+pytest = "~7.0.1"
+pytest-asyncio = "~0.18.1"
+pytest-async-sqlalchemy = "~0.2.0"
+pytest-xdist = "~2.5.0"
+factory-boy = "~3.2.1"
+pytest-dotenv = "^0.5.2"
+pytest-cov = "^3.0.0"

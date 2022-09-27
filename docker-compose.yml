@@ -1,0 +1,57 @@
+version: "3.8"
+
+x-postgres_environment: &postgres_environment
+  POSTGRES_DB: ${POSTGRES_DB:-postgres}
+  POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  POSTGRES_HOST: ${POSTGRES_HOST:-db}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+
+x-app_environment: &app_environment
+  PROJECT_NAME: ${PROJECT_NAME:-Example}
+  DEBUG: ${DEBUG:-True}
+  CORS_ORIGINS: ${CORS_ORIGINS:-*}
+  KAFKA_BOOTSTRAP_SERVERS: 'kafka:29092'
+  KAFKA_SCHEMA_REGISTRY_URL: 'http://schema-registry:8081'
+
+
+services:
+  app:
+    image: ${APP_IMAGE:-template_app}
+    build:
+      context: ./
+      dockerfile: docker/Dockerfile
+    command: uvicorn src.api.main:app --reload --host 0.0.0.0 --port 80
+    entrypoint: wait-for db:5432 -- docker/entrypoint.sh
+    ports:
+      - "8000:80"
+    depends_on:
+      - db
+    environment:
+      KAFKA_FAUST_APP_TYPE: "producer"
+      <<: *app_environment
+      <<: *postgres_environment
+
+  db:
+    image: postgres:12-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      <<: *postgres_environment
+
+  kafka-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: always
+    container_name: kafka-worker
+    command: python3 -m src.worker worker -l info
+    entrypoint: wait-for db:5432  -- docker/entrypoint.sh
+    volumes:
+      - ./:/app
+      - ./ca_cert.pem:/var/kafka-cert/ca_cert.pem
+    depends_on:
+      - db
+    environment:
+      <<: *app_environment
+      <<: *postgres_environment

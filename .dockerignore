@@ -1,0 +1,6 @@
+**/.*
+postgres_data
+docker/Dockerfile
+docker-compose.yml
+Makefile
+README.md
